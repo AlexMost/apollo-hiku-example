@@ -1,0 +1,44 @@
+containers:
+  hiku:
+    setup:
+    - !Alpine v3.6
+    - !Py3Install ['hiku', 'graphql-core', 'six', 'promise', 'Flask', 'werkzeug', 'jinja2',
+      'markupsafe', 'itsdangerous', 'click', 'flask-cors']
+
+  node:
+    environ:
+      NODE_PATH: /usr/lib/node_modules
+      BABEL_CACHE_PATH: /work/.babel.json
+    setup:
+    - !Alpine v3.6
+    - !Repo edge/main
+    - !Install [nodejs-npm=6.10.3-r0]
+    - !NpmDependencies
+      package: true
+      dev: true
+    - !EnsureDir /root/.config
+
+commands:
+  hiku: &hiku !Command
+    description: Start hiku server
+    container: hiku
+    run: python3 -m hikuserver.server
+
+  node-server: &node-server !Command
+    description: Starts nodejs server
+    container: node
+    volumes:
+      /root/.config: !Tmpfs { size: 1Gi }
+    run: nodemon server/server.js -e js,jsx --watch server --watch components --exec babel-node --presets es2015,react
+
+  webpack: &webpack !Command
+    description: Builds bundle
+    container: node
+    run: [webpack, --progress]
+
+  run: !Supervise
+    description: Runs all application
+    prerequisites: [webpack]
+    children:
+      hiku: *hiku
+      node-server: *node-server
